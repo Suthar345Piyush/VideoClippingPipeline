@@ -23,10 +23,10 @@ type Config struct {
 // server config
 
 type ServerConfig struct {
-	Port          int           `yaml:"port"`
-	Host          string        `yaml:"host"`
-	Read_Timeout  time.Duration `yaml:"read_timeout"`
-	Write_Timeout time.Duration `yaml:"write_timeout"`
+	Port         int           `yaml:"port"`
+	Host         string        `yaml:"host"`
+	ReadTimeout  time.Duration `yaml:"read_timeout"`
+	WriteTimeout time.Duration `yaml:"write_timeout"`
 }
 
 // db config
@@ -57,9 +57,9 @@ type FFmpegConfig struct {
 // worker cfg
 
 type WorkerConfig struct {
-	PoolSize   int `yaml:"pool_size"`
-	QueueSize  int `yaml:"queue_size"`
-	JobTimeout int `yaml:"job_timeout"`
+	PoolSize   int           `yaml:"pool_size"`
+	QueueSize  int           `yaml:"queue_size"`
+	JobTimeout time.Duration `yaml:"job_timeout"`
 }
 
 // logger cfg
@@ -192,9 +192,100 @@ func (c *Config) overrideEnvs() {
 
 // some default values, if any values remain empty
 
-func (c *Config) setDefualts() {
+func (c *Config) setDefualtVals() {
+
 	if c.Server.Port == 0 {
 		c.Server.Port = 8080
 	}
+
+	if c.Server.Host == "" {
+		c.Server.Host = "0.0.0.0"
+	}
+
+	if c.Server.ReadTimeout == 0 {
+		c.Server.ReadTimeout = 30 * time.Second
+	}
+
+	if c.Server.WriteTimeout == 0 {
+		c.Server.WriteTimeout = 30 * time.Second
+	}
+
+	if c.Database.Max_Open_Conns == 0 {
+		c.Database.Max_Open_Conns = 10
+	}
+
+	if c.Database.Max_Idle_Conns == 0 {
+		c.Database.Max_Idle_Conns = 5
+	}
+
+	if c.FFmpeg.BinaryPath == "" {
+		c.FFmpeg.BinaryPath = "ffmpeg"
+	}
+
+	if c.FFmpeg.FFprobePath == "" {
+		c.FFmpeg.FFprobePath = "ffprobe"
+	}
+
+	if c.Whisper.PythonPath == "" {
+		c.Whisper.PythonPath = "python"
+	}
+
+	if c.Whisper.Model == "" {
+		c.Whisper.Model = "small"
+	}
+
+	if c.Whisper.Device == "" {
+		c.Whisper.Device = "cpu"
+	}
+
+	if c.Whisper.ComputeType == "" {
+		c.Whisper.Device = "int8"
+	}
+
+	if c.Worker.PoolSize == 0 {
+		c.Worker.PoolSize = 2
+	}
+
+	if c.Worker.QueueSize == 0 {
+		c.Worker.QueueSize = 30
+	}
+
+	if c.Worker.JobTimeout == 0 {
+		c.Worker.JobTimeout = 20 * time.Minute
+	}
+
+	if c.Logger.Level == "" {
+		c.Logger.Level = "info"
+	}
+
+	if c.Logger.Format == "" {
+		c.Logger.Format = "json"
+	}
+
+	if c.Logger.OutputPath == "" {
+		c.Logger.OutputPath = "stdout"
+	}
+
+}
+
+// function to directories are created as expected
+// all are storage directories
+
+func (c *Config) directoriesCreation() error {
+	dirs := []string{
+		c.Storage.CaptionsDir,
+		c.Storage.ClipsDir,
+		c.Storage.TempDir,
+		c.Storage.TranscriptsDir,
+		c.Storage.UploadsDir,
+	}
+
+	for _, dir := range dirs {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return fmt.Errorf("config: failed to create directory %q: %w", dir, err)
+		}
+	}
+
+	return nil
 
 }

@@ -27,7 +27,7 @@ ffmpeg:
 worker:
    pool_size: 2
    queue_size: 30
-   job_timeout: 20m 
+   job_timeout: 20m
 
 logger:
    level: "info"
