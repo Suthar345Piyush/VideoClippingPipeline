@@ -124,7 +124,9 @@ func clipPathFunc(clipsDir, videoID string, i Segments) string {
 
 // function to generate random id, using stdlib's crypto random
 
-// random id with prefix cl-feegrgergbiufwy37434
+// random id with prefix cl-hghfbj37mj463437434
+
+// it will generate 16 character random ID
 
 func generateID() (string, error) {
 
@@ -199,7 +201,7 @@ func labelFunc(index int, start, end float64) string {
 
 }
 
-// function for start time and end time format -  HH:MM:SS
+// function for start time and end time format -  HH:MM:SS - 18:13:48
 
 func timeFormat(sec float64) string {
 	total := int(math.Round(sec))
