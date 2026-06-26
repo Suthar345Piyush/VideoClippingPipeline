@@ -94,5 +94,5 @@ func (ci *ClipInput) validate() error {
 
 type Result struct {
 	OutputPath string
-	Duration   float64
+	Duration   float64 // duration will be  = endtime - startime
 }

@@ -3,7 +3,12 @@
 package clipping
 
 import (
+	"bytes"
 	"context"
+	"fmt"
+	"os/exec"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Suthar345Piyush/videoclippingpipeline/internal/config"
@@ -79,6 +84,71 @@ Complete Command :-
 
 */
 
-func (c *Cutter) Cut(ctx context.Context, in ClipInput) (Result, error) {
+func (c *Cutter) Cut(ctx context.Context, ci ClipInput) (Result, error) {
+
+	if err := ci.validate(); err != nil {
+		return Result{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, c.timeout)
+
+	defer cancel()
+
+	args := c.buildArgs(ci)
+
+	cmd := exec.CommandContext(ctx, c.binaryPath, args...)
+
+	var stderr bytes.Buffer
+
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+
+		if ctx.Err() == context.DeadlineExceeded {
+			return Result{}, fmt.Errorf("clipping: ffmpeg command timed out after %s cutting %q [%.3f, %.3f]", c.timeout, ci.SourcePath, ci.StartTime, ci.EndTime)
+		}
+
+		return Result{}, fmt.Errorf("clipping: ffmpeg command failed for %q [%.3f, %.3f]: %w\nstderr: %s", ci.SourcePath, ci.StartTime, ci.EndTime, err, strings.TrimSpace(stderr.String()))
+
+	}
+
+	return Result{
+		OutputPath: ci.OutputPath,
+		Duration:   ci.EndTime - ci.StartTime,
+	}, nil
+
+}
+
+// seperate function for ffmpeg command with clipInput, and it returns slice of string
+
+func (c *Cutter) buildArgs(ci ClipInput) []string {
+
+	start := strconv.FormatFloat(ci.StartTime, 'f', 3, 64)
+	end := strconv.FormatFloat(ci.EndTime, 'f', 3, 64)
+
+	args := []string{
+		"-y",
+		"-ss", start,
+		"-to", end,
+		"-i", ci.SourcePath,
+		"-c:v", ci.Preset.VideoCodec,
+		"-preset", ci.Preset.Preset,
+		"-crf", strconv.Itoa(ci.Preset.CRF),
+		"-c:a", ci.Preset.AudioCodec,
+		"-b:a", ci.Preset.AudioBitrate,
+		"-movflags", "+faststart",
+		"-avoid_negative_ts", "make_zero",
+	}
+
+	// scale width used for scaling video, rotating , crop and all
+	// appending the -vf - video filter flag with -2 value
+
+	if ci.Preset.ScaleWidth > 0 {
+		args = append(args, "-vf", fmt.Sprintf("scale=%d:-2", ci.Preset.ScaleWidth))
+	}
+
+	args = append(args, ci.OutputPath)
+
+	return args
 
 }
