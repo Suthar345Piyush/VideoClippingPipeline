@@ -222,6 +222,126 @@ func TestBuildArgs_CustomCodecAndCRF(t *testing.T) {
 	}
 }
 
+// tests for validate function body
+
+// first test on, if we have empty source path
+
+func TestClipInputValidate_NoSourcePath(t *testing.T) {
+	r := ClipInput{
+		OutputPath: "/out/output.mp4",
+		StartTime:  0,
+		EndTime:    10,
+		Preset:     DefaultPreset,
+	}
+
+	if err := r.validate(); err == nil {
+		t.Fatal("expected error for no source path is provided, got nil")
+	}
+}
+
+// no output path is provided
+
+func TestClipInputValidate_NoOutputPath(t *testing.T) {
+	r := ClipInput{
+		SourcePath: "/src/input.mp4",
+		StartTime:  0,
+		EndTime:    10,
+		Preset:     DefaultPreset,
+	}
+
+	if err := r.validate(); err == nil {
+		t.Fatal("expected error for no output path is provided, got nil")
+	}
+}
+
+// if their is an negative start time
+
+func TestClipInputValidate_NegativeStartTime(t *testing.T) {
+	r := ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  -5.0,
+		EndTime:    10.0,
+		Preset:     DefaultPreset,
+	}
+
+	if err := r.validate(); err == nil {
+		t.Fatal("expected error for negative start time, got nil")
+	}
+}
+
+// tests for endtime is settled before starttime
+// endtime should be more than starttime
+
+func TestClipInputValidate_EndTimeBeforeStartTime(t *testing.T) {
+	r := ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  60.0,
+		EndTime:    30.0,
+		Preset:     DefaultPreset,
+	}
+
+	if err := r.validate(); err == nil {
+		t.Fatal("expected error for endtime < startime, got nil")
+	}
+}
+
+// if end time is equal to start time
+
+func TestClipInputValidate_StartTimeEqualsEndTime(t *testing.T) {
+	r := ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  30.0,
+		EndTime:    30.0,
+		Preset:     DefaultPreset,
+	}
+
+	if err := r.validate(); err == nil {
+		t.Fatal("expected error for starttime == endtime (0 length clip) not possible, got nil")
+	}
+}
+
+// if the default preset / preset not mentioned, then it will considered as zero valued handling like
+
+func TestClipInputValidate_ZeroPresetFilledWithDefault(t *testing.T) {
+	r := ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  0,
+		EndTime:    10,
+	}
+
+	if err := r.validate(); err != nil {
+		t.Fatalf("unexpected validation error: %v", err)
+	}
+
+	if r.Preset.VideoCodec != DefaultPreset.VideoCodec {
+		t.Errorf("expected Preset.VideoCodec=%q, got %q", DefaultPreset.VideoCodec, r.Preset.VideoCodec)
+	}
+
+	if r.Preset.CRF != DefaultPreset.CRF {
+		t.Errorf("expected Preset.CRF=%d, got %d", DefaultPreset.CRF, r.Preset.CRF)
+	}
+}
+
+// tests for checking valid request
+
+func TestClipInputValidate_ValidRequest(t *testing.T) {
+	r := ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  0,
+		EndTime:    30,
+		Preset:     DefaultPreset,
+	}
+
+	if err := r.validate(); err != nil {
+		t.Fatalf("unexpected error for valid request: %v", err)
+	}
+}
+
 // index of args  function
 
 func indexOfArgs(slice []string, target string) int {
