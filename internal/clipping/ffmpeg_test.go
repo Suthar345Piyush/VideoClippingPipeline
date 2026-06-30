@@ -99,6 +99,129 @@ func TestBuildArgs_StartEndTimeBeforeInput(t *testing.T) {
 
 }
 
+// tests for start and end time formatting
+
+func TestBuildArgs_TimeFormatting(t *testing.T) {
+
+	c := NewCutter(&config.FFmpegConfig{})
+
+	args := c.buildArgs(ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  1.5,
+		EndTime:    90.123,
+		Preset:     DefaultPreset,
+	})
+
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "1.500") {
+		t.Errorf("start time should be '1.500', args: %s", joined)
+	}
+
+	if !strings.Contains(joined, "90.123") {
+		t.Errorf("end time should be '90.123', args: %s", joined)
+	}
+
+}
+
+// tests for the fixed scale width
+
+func TestBuildArgs_ScaleWidth(t *testing.T) {
+
+	c := NewCutter(&config.FFmpegConfig{})
+
+	preset := DefaultPreset
+	preset.ScaleWidth = 1280
+
+	args := c.buildArgs(ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  0,
+		EndTime:    10,
+		Preset:     preset,
+	})
+
+	joined := strings.Join(args, " ")
+
+	if !strings.Contains(joined, "-vf") {
+		t.Errorf("expected -vf flag when scale width > 0")
+	}
+
+	if !strings.Contains(joined, "scale=1280:-2") {
+		t.Errorf("expected 'scale=1280:-2' in args, got: %s", joined)
+	}
+
+}
+
+// when scale width = 0, then no -vf flag should appear
+
+func TestBuildArgs_NoScaleWidth(t *testing.T) {
+
+	c := NewCutter(&config.FFmpegConfig{})
+	args := c.buildArgs(ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  0,
+		EndTime:    10,
+		Preset:     DefaultPreset,
+	})
+
+	for _, a := range args {
+		if a == "-vf" {
+			t.Errorf("unexpected -vf flag when scale width = 0")
+		}
+	}
+}
+
+// their should be a output path to write to it final output ffmpeg will require it
+
+func TestBuildArgs_OutputIsLastArgs(t *testing.T) {
+
+	c := NewCutter(&config.FFmpegConfig{})
+	args := c.buildArgs(ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/clip.mp4",
+		StartTime:  0,
+		EndTime:    10,
+		Preset:     DefaultPreset,
+	})
+
+	if args[len(args)-1] != "/out/clip.mp4" {
+		t.Errorf("last arg must be output path, but got %q", args[len(args)-1])
+	}
+}
+
+// last build args tests, will be hardcoded codec and other EncodePreset struct
+
+func TestBuildArgs_CustomCodecAndCRF(t *testing.T) {
+	c := NewCutter(&config.FFmpegConfig{})
+
+	preset := EncodePreset{
+		VideoCodec:   "libx264",
+		Preset:       "slow",
+		CRF:          18,
+		AudioCodec:   "copy",
+		AudioBitrate: "192k",
+	}
+
+	args := c.buildArgs(ClipInput{
+		SourcePath: "/src/input.mp4",
+		OutputPath: "/out/output.mp4",
+		StartTime:  0,
+		EndTime:    10,
+		Preset:     preset,
+	})
+
+	joined := strings.Join(args, " ")
+
+	for _, want := range []string{"libx246", "slow", "18", "copy", "192k"} {
+		if !strings.Contains(joined, want) {
+			t.Errorf("expected %q in args: %s", want, joined)
+		}
+	}
+}
+
 // index of args  function
 
 func indexOfArgs(slice []string, target string) int {
