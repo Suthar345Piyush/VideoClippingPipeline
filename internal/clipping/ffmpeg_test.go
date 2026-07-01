@@ -480,6 +480,96 @@ func TestCutter_Cut_WithScaleWidth(t *testing.T) {
 
 }
 
+// tests for, if source file is missing
+
+func TestCutter_Cut_MissingSourceFile(t *testing.T) {
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available on this host")
+	}
+
+	tmpDir := t.TempDir()
+	c := NewCutter(&config.FFmpegConfig{BinaryPath: "ffmpeg"})
+
+	_, err := c.Cut(context.Background(), ClipInput{
+		SourcePath: "",
+		OutputPath: filepath.Join(tmpDir, "out.mp4"),
+		StartTime:  0,
+		EndTime:    5,
+		Preset:     DefaultPreset,
+	})
+
+	if err == nil {
+		t.Fatal("expected error for missing source file, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "ffmpeg") {
+		t.Errorf("error should mention ffmpeg, got: %v", err)
+	}
+
+}
+
+// timeout tests
+
+func TestCutter_Cut_Timeout(t *testing.T) {
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available on this path")
+	}
+
+	tmpDir := t.TempDir()
+
+	c := NewCutter(&config.FFmpegConfig{BinaryPath: "ffmpeg"}).WithTimeout(1 * time.Nanosecond)
+
+	_, err := c.Cut(context.Background(), ClipInput{
+		SourcePath: "/nonexistent.mp4",
+		OutputPath: filepath.Join(tmpDir, "out.mp4"),
+		StartTime:  0,
+		EndTime:    5,
+		Preset:     DefaultPreset,
+	})
+
+	if err == nil {
+		t.Fatal("expected timeout or ffmpeg error, got nil")
+	}
+
+}
+
+// tests for overwriting the output path
+
+func TestCutter_Cut_OverwriteOutputPath(t *testing.T) {
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available in this path")
+	}
+
+	tempDir := t.TempDir()
+	c := NewCutter(&config.FFmpegConfig{BinaryPath: "ffmpeg"})
+	src := generateTestVideo(t, tempDir, "source.mp4", 10, true)
+	out := filepath.Join(tempDir, "out.mp4")
+
+	ci := ClipInput{
+		SourcePath: src,
+		OutputPath: out,
+		StartTime:  0,
+		EndTime:    5,
+		Preset:     DefaultPreset,
+	}
+
+	// first clip cut failed
+
+	if _, err := c.Cut(context.Background(), ci); err != nil {
+		t.Fatalf("first cut failed: %v", err)
+	}
+
+	// second cut to the same output - should not fail due to existing file
+
+	if _, err := c.Cut(context.Background(), ci); err != nil {
+		t.Fatalf("second cut failed: %v", err)
+	}
+
+}
+
 // index of args  function
 
 func indexOfArgs(slice []string, target string) int {
