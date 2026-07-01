@@ -3,8 +3,14 @@
 package clipping
 
 import (
+	"context"
+	"fmt"
+	"math"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Suthar345Piyush/videoclippingpipeline/internal/config"
 )
@@ -342,6 +348,138 @@ func TestClipInputValidate_ValidRequest(t *testing.T) {
 	}
 }
 
+// cutter timeout tests
+// cut time will be of 5mins
+
+func TestCutter_WithTimeout_SetsTimeout(t *testing.T) {
+	c := NewCutter(&config.FFmpegConfig{}).WithTimeout(5 * time.Minute)
+	if c.timeout != 5*time.Minute {
+		t.Errorf("timeout = %v, but want 5m", c.timeout)
+	}
+}
+
+// with zero used default
+
+func TestCutter_WithTimeout_ZeroUsesDefault(t *testing.T) {
+	c := NewCutter(&config.FFmpegConfig{}).WithTimeout(0)
+
+	if c.timeout != 10*time.Minute {
+		t.Errorf("zero timeout should default to 10m, but got %v", c.timeout)
+	}
+
+}
+
+// tests for does not change the original cutter
+
+func TestCutter_WithTimeout_DoesNotChangeOriginalCutter(t *testing.T) {
+
+	original := NewCutter(&config.FFmpegConfig{})
+
+	originalTimeout := original.timeout
+
+	_ = original.WithTimeout(1 * time.Minute)
+
+	if original.timeout != originalTimeout {
+		t.Errorf("WithTimeout must not change the original cutter")
+	}
+
+}
+
+// integration tests with ffmpeg on cut section
+
+func TestCutter_Cut_ProducesOutputFile(t *testing.T) {
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available on this host")
+	}
+
+	tmpDir := t.TempDir()
+
+	src := generateTestVideo(t, tmpDir, "source.mp4", 10, true)
+
+	out := filepath.Join(tmpDir, "clip.mp4")
+
+	c := NewCutter(&config.FFmpegConfig{BinaryPath: "ffmpeg"})
+	result, err := c.Cut(context.Background(), ClipInput{
+		SourcePath: src,
+		OutputPath: out,
+		StartTime:  2.0,
+		EndTime:    7.0,
+		Preset:     DefaultPreset,
+	})
+
+	if err != nil {
+		t.Fatalf("Cut failed: %v", err)
+	}
+
+	if result.OutputPath != out {
+		t.Errorf("OutputPath is %q, but want %q", result.OutputPath, out)
+	}
+
+	// duration should be 5 seconds
+	if math.Abs(result.Duration-5.0) > 0.01 {
+		t.Errorf("video duration = %.4f, but want around ~5.000", result.Duration)
+	}
+
+}
+
+// tests for video if , it does not contain the audio in it
+// even after not having audio, the clip should work
+func TestCutter_Cut_NoAudioVideo(t *testing.T) {
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available on this host")
+	}
+
+	tmpDir := t.TempDir()
+	src := generateTestVideo(t, tmpDir, "noaudio.mp4", 10, false) // no audio
+	out := filepath.Join(tmpDir, "clip_noaudio.mp4")
+
+	c := NewCutter(&config.FFmpegConfig{BinaryPath: "ffmpeg"})
+	_, err := c.Cut(context.Background(), ClipInput{
+		SourcePath: src,
+		OutputPath: out,
+		StartTime:  0,
+		EndTime:    5,
+		Preset:     DefaultPreset,
+	})
+
+	if err != nil {
+		t.Fatalf("cut failed on video with no audio: %v", err)
+	}
+
+}
+
+// tests, when we have the scale width
+
+func TestCutter_Cut_WithScaleWidth(t *testing.T) {
+
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not available on this host")
+	}
+
+	tmpDir := t.TempDir()
+	src := generateTestVideo(t, tmpDir, "scaled_file.mp4", 5, true)
+	out := filepath.Join(tmpDir, "clip_scaledfile.mp4")
+
+	preset := DefaultPreset
+	preset.ScaleWidth = 160 // it will scale down to 320x240
+
+	c := NewCutter(&config.FFmpegConfig{BinaryPath: "ffmpeg"})
+	_, err := c.Cut(context.Background(), ClipInput{
+		SourcePath: src,
+		OutputPath: out,
+		StartTime:  0,
+		EndTime:    3,
+		Preset:     preset,
+	})
+
+	if err != nil {
+		t.Fatalf("cut with scale width failed: %v", err)
+	}
+
+}
+
 // index of args  function
 
 func indexOfArgs(slice []string, target string) int {
@@ -351,4 +489,42 @@ func indexOfArgs(slice []string, target string) int {
 		}
 	}
 	return -1
+}
+
+// generating the video file using ffmpeg, with duration (seconds), audio filename and audio track
+
+// using -shortest flag , because it tells the tool to stop encoding immediately when the shortest input stream ends.
+
+func generateTestVideo(t *testing.T, dir, filename string, duration int, withAudio bool) string {
+	t.Helper()
+
+	path := filepath.Join(dir, filename)
+
+	args := []string{
+		"-y",
+		"-f", "lavfi",
+		"-i", fmt.Sprintf("testsrc=duration=%d:size=320x240:rate=24", duration),
+	}
+
+	if withAudio {
+
+		args = append(args, "-f", "lavfi", "-i",
+			fmt.Sprintf("sine=frequency=440:duration=%d", duration),
+			"-c:v", "libx264", "-c:a", "aac", "-shortest",
+		)
+
+	} else {
+		args = append(args, "-c:v", "libx264")
+	}
+
+	args = append(args, path)
+
+	cmd := exec.Command("ffmpeg", args...)
+
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("failed to generate test video %q: %v\n%s", filename, out, err)
+	}
+
+	return path
+
 }
