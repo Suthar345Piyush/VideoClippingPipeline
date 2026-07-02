@@ -74,7 +74,7 @@ func (s *Service) ProcessClip(ctx context.Context, clipID string) (database.Clip
 	clip, err := s.queries.GetClip(ctx, clipID)
 
 	if err != nil {
-		return database.Clip{}, fmt.Errorf("clipping: failed to load the clip: %w", clipID, err)
+		return database.Clip{}, fmt.Errorf("clipping: failed to load the clip: %v", err)
 	}
 
 	// verification for the clip status 'pending', processing those, which have status pending
@@ -138,7 +138,7 @@ func (s *Service) ProcessClip(ctx context.Context, clipID string) (database.Clip
 	})
 
 	if err != nil {
-		return database.Clip{}, fmt.Errorf("clipping: cut succeeded but failed to update the status to done", clipID, err)
+		return database.Clip{}, fmt.Errorf("clipping: cut succeeded but failed to update the status to done: %v", err)
 	}
 
 	log.Info("clip done", slog.String("path", updated.ClipPath))

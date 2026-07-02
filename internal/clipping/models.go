@@ -75,11 +75,11 @@ func (ci *ClipInput) validate() error {
 	}
 
 	if ci.StartTime < 0 {
-		return fmt.Errorf("clipping: StartTime must be >= 0", ci.StartTime)
+		return fmt.Errorf("clipping: StartTime must be >= 0")
 	}
 
 	if ci.EndTime <= ci.StartTime {
-		return fmt.Errorf("clipping: EndTime must be greater than EndTime", ci.EndTime, ci.StartTime)
+		return fmt.Errorf("clipping: EndTime must be greater than EndTime")
 	}
 
 	if ci.Preset.VideoCodec == "" {
